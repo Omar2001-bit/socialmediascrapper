@@ -1,0 +1,128 @@
+=== TABLE 0 ===
+Version | 1.0
+Date | March 2026
+Status | Ready for Development
+Owner | CRO Agency — Research Team
+Audience | Antigravity Dev Agents
+
+=== TABLE 1 ===
+Metric | Target
+Accuracy on reachable sites | >85% of social links found
+Crash rate | 0% — errors handled gracefully
+Run time for 30 competitors | <10 minutes
+Export formats | CSV + XLSX both working
+Platforms detected | 9 (FB, IG, X, LI, TT, YT, Pinterest, Snapchat, Threads)
+
+=== TABLE 2 ===
+Layer | Technology
+Frontend | React (JSX) — single file artifact
+File Parsing | SheetJS (xlsx) loaded via CDN — parses .xlsx client-side
+AI / Scraping | Anthropic Messages API (claude-sonnet-4-20250514) with web_search tool
+Styling | CSS Variables — claude.ai native theme, light/dark auto-adaptive
+Export | SheetJS (XLSX) + native Blob API (CSV)
+Hosting | Claude.ai artifact panel — no deployment needed
+
+=== TABLE 3 ===
+Agent | Name | Responsibility
+A1 | Sheet Parser | Read .xlsx, detect columns, output structured competitor list
+A2 | Scraper Engine | Per-site: call API with web_search, extract social links, handle errors
+A3 | Report Builder | Merge results into table UI, compute stats (found/total, platform coverage)
+A4 | Export Agent | Generate CSV and XLSX download files from merged result data
+
+=== TABLE 4 ===
+Agent 1: Sheet Parser Agent
+Purpose Accepts a raw File object (.xlsx or .xls), parses it using SheetJS, auto-detects which column contains brand names and which contains URLs, and returns a clean JSON array of competitor objects. Inputs File object from browser file input or drag-and-drop No configuration required — fully automatic column detection  Outputs competitors[] — array of { name: string, url: string } columnMap — { nameCol: string, urlCol: string } for debugging parseError — string | null if something went wrong  Logic / Steps 1. Load file using FileReader as ArrayBuffer 2. Pass buffer to XLSX.read() with { type: 'array' } 3. Call XLSX.utils.sheet_to_json() on the first sheet 4. Scan column headers with regex: /name|brand|company/i for name, /url|website|site|link|domain/i for URL 5. Fall back to first column = name, second column = URL if no matches 6. Filter out blank rows (both name and URL empty) 7. Return structured array + column map
+
+=== TABLE 5 ===
+Agent 2: Scraper Engine Agent
+Purpose The core of the system. For each competitor, it calls the Anthropic API with the web_search tool enabled, prompts the model to find social media links for that brand's website, parses the JSON response, and returns a structured result. This agent runs once per competitor and is designed to be called concurrently with configurable parallelism. Inputs competitor — { name: string, url: string } index — number (for logging) total — number (for logging) Anthropic API accessible (no key needed in artifact context)  Outputs result — { name, url, socials: { Platform: string }, status: 'ok' | 'unreachable' | 'error' | 'no_links' } Appended to shared results state in real time  Logic / Steps 1. Normalize URL: prepend https:// if no protocol present 2. Build prompt: instruct model to fetch the homepage and return ONLY a JSON object of { PlatformName: URL } 3. Call POST /v1/messages with model=claude-sonnet-4-20250514, max_tokens=1000, tools=[{ type: 'web_search_20250305' }] 4. Extract text blocks from response: data.content.filter(b => b.type === 'text').map(b => b.text).join('') 5. Strip ```json fences, parse JSON safely in try/catch 6. On JSON parse failure: set status = 'parse_error', socials = {} 7. On response containing { error: 'unreachable' }: set status = 'unreachable' 8. On fetch() network failure: set status = 'error' 9. On empty socials object: set status = 'no_links' 10. Push result to shared state and trigger UI update 11. Wait 600ms between calls to avoid rate limiting (configurable)
+
+=== TABLE 6 ===
+Agent 3: Report Builder Agent
+Purpose Consumes the live stream of results from the Scraper Engine and maintains the report UI. It renders each result as a card as soon as it arrives — the user sees results populate in real time. It also maintains a summary stats bar at the top. Inputs results[] — reactive array updated as A2 completes each site status — 'running' | 'done' | 'stopped'  Outputs Live result cards rendered per competitor Summary stats: X of Y scraped, Z total links found, platform coverage breakdown Visual status badges: found (green), no_links (yellow), unreachable (red), error (red)  Logic / Steps 1. Subscribe to results[] state array (React useState + useEffect) 2. For each result, render a card: brand name, website URL, status badge, platform link pills 3. Platform pills are anchor tags linking directly to the found profile URL 4. Maintain a summary bar with: total processed, total links found, % success rate 5. Show platform breakdown: which platforms had the most presence across all competitors 6. All cards visible at once — no pagination (scroll is fine for 100 items)
+
+=== TABLE 7 ===
+Agent 4: Export Agent
+Purpose Provides two export buttons — CSV and XLSX — that become active once the run completes (or can also export mid-run). Generates the files client-side using SheetJS and triggers a browser download with no server involvement. Inputs results[] — array of completed result objects SheetJS (xlsx) library loaded via CDN  Outputs competitor_socials.csv — downloadable CSV with one row per competitor competitor_socials.xlsx — downloadable Excel workbook with formatted table  Logic / Steps 1. Define fixed platform columns: Facebook, Twitter, Instagram, LinkedIn, TikTok, YouTube, Pinterest, Snapchat, Threads 2. Map each result to a flat row: { Brand, Website, Status, ...platformCols } 3. CSV: join rows with commas, escape quotes, create Blob with type text/csv, trigger download via anchor click 4. XLSX: use XLSX.utils.json_to_sheet() to build sheet, XLSX.utils.book_append_sheet(), XLSX.writeFile() to trigger download 5. File names: competitor_socials_[YYYY-MM-DD].csv / .xlsx 6. Both exports available immediately after run; also allow mid-run export of completed results so far
+
+=== TABLE 8 ===
+State | UI Behavior
+idle | Upload zone shown prominently. No other zones visible.
+parsing | Upload zone shows spinner. No buttons active.
+ready | Competitor count shown. Start button enabled. No results yet.
+running | Progress bar active. Log streaming. Results populating. Stop link shown.
+done | Progress bar full. Log shows 'Done'. Export buttons active. Re-run available.
+stopped | Run halted mid-way. Partial results shown. Export available for completed items.
+
+=== TABLE 9 ===
+You are a web researcher.  Search the web for the brand "[BRAND_NAME]" and their website [URL]. Find their official social media profiles on: Facebook, Twitter/X, Instagram, LinkedIn, TikTok, YouTube, Pinterest, Snapchat, Threads  Return ONLY a valid JSON object. No explanation. No markdown fences. Example: {"Facebook": "https://facebook.com/brand", "Instagram": "https://instagram.com/brand"}  If unreachable: {"error": "unreachable"} If no social links found: {}
+
+=== TABLE 10 ===
+Error Type | Cause | Handling
+File parse error | Corrupt or wrong-format file | Show inline error, reset to idle state
+No URL column found | Sheet has unexpected columns | Default to col 2 as URL, warn user in log
+Network failure | API unreachable (e.g. offline) | status = 'error', continue to next competitor
+Site blocked / bot detect | Cloudflare, Captcha, etc. | API handles this — model returns unreachable
+JSON parse failure | Model returned non-JSON text | status = 'parse_error', log the raw response
+Empty result | No socials on site | status = 'no_links', show empty card
+Rate limiting | Too many rapid API calls | 600ms delay between calls, configurable in constants
+User stops run | Stop button clicked | Set abort flag, finish current call, stop loop
+
+=== TABLE 11 ===
+Field | Type | Description
+name | string | Brand name from sheet — may be empty if URL-only sheet
+url | string | Website URL — normalized to include https://
+
+=== TABLE 12 ===
+Field | Type | Description
+name | string | Passed through from competitor object
+url | string | Passed through from competitor object
+socials | { [platform]: string } | Map of platform name to full profile URL
+status | 'ok'|'no_links'|'unreachable'|'error'|'parse_error' | Outcome of scrape attempt
+
+=== TABLE 13 ===
+Column | Value
+Brand | result.name
+Website | result.url
+Status | result.status
+Facebook | result.socials.Facebook || ''
+Twitter | result.socials.Twitter || ''
+Instagram | result.socials.Instagram || ''
+LinkedIn | result.socials.LinkedIn || ''
+TikTok | result.socials.TikTok || ''
+YouTube | result.socials.YouTube || ''
+Pinterest | result.socials.Pinterest || ''
+Snapchat | result.socials.Snapchat || ''
+Threads | result.socials.Threads || ''
+
+=== TABLE 14 ===
+Agent | Starts When | Blocks On | Merges Into
+A1 — Sheet Parser | Immediately on file drop | Nothing | Competitor list → shared state
+A2 — Scraper Engine | A1 completes | A1 output | Results array → shared state
+A3 — Report Builder | A1 completes (renders live) | None — streams from A2 | UI layer — reads shared state
+A4 — Export Agent | Run complete (or on demand) | A2 results array | Download files — reads shared state
+
+=== TABLE 15 ===
+Agent | File | Exports
+A1 | src/agents/sheetParser.js | parseXLSX(file) → Promise<Competitor[]>
+A2 | src/agents/scraper.js | scrapeCompetitor(competitor, idx, total) → Promise<Result>
+A3 | src/components/ReportView.jsx | <ReportView results={} status={} />
+A4 | src/agents/exporter.js | exportCSV(results), exportXLSX(results)
+Coordinator | src/App.jsx | Orchestrates state, wires A1→A2→A3/A4
+
+=== TABLE 16 ===
+Worker | Agents | Notes
+Worker 1 | A1 + A2 | Core logic. Sheet parsing and API scrape loop. Most complex.
+Worker 2 | A3 | Report UI component. Can use mock result data to develop in isolation.
+Worker 3 | A4 + App.jsx coordinator | Export functions + wiring. Simplest agent, then assembles all.
+
+=== TABLE 17 ===
+Feature | Priority | Notes
+Follower counts per platform | High | Second API call per competitor — add to export
+Inner page scraping (about/contact) | High | Up to 3 pages per site — improves accuracy significantly
+Google Sheets input | Medium | OAuth + Sheets API integration
+Bluesky, Mastodon, Reddit support | Medium | Add to platform list + export columns
+Manual override per competitor | Medium | Let user edit a result if the tool missed a link
+Batch size control (parallelism) | Low | Run N sites simultaneously instead of sequentially
+Historical comparison | Low | Run again, highlight new/changed/removed links
+

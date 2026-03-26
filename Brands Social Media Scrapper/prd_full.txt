@@ -1,0 +1,129 @@
+COMPETITOR SOCIAL LINK SCRAPER
+Product Requirements Document & Implementation Plan
+Designed for Parallel Antigravity Agent Execution
+1. Overview & Problem Statement
+Our CRO agency conducts competitive research for every new client onboarding. Currently, the research analyst manually visits each competitor website to find social media profiles — a repetitive, time-consuming task that can take several hours for a typical list of 20–50 competitors.
+This tool automates that process. Given an Excel sheet of competitors (brand name + website URL), it visits each site, extracts all social media profile links, and produces a consolidated report — both as an in-app table and a downloadable Excel file.
+The implementation is broken into discrete, independently-runnable agents so Antigravity can execute them in parallel and maximize throughput.
+2. Goals & Success Criteria
+2.1 Primary Goals
+Reduce competitor social link research from hours to minutes
+Handle 20–100 competitors in a single run
+Produce a clean, exportable report with zero manual effort
+Be robust to failed/blocked sites — never crash the full run
+2.2 Success Criteria
+3. System Architecture
+The tool is a single-page React application (JSX artifact) that runs entirely in the browser. It calls the Anthropic Messages API directly — no backend server required. This keeps deployment trivial and the whole system self-contained.
+3.1 Tech Stack
+3.2 Parallel Agent Architecture
+The implementation is decomposed into 4 independent agents that Antigravity can run simultaneously. Each agent has a clear input, a single responsibility, and a defined output. A coordinator agent merges the outputs at the end.
+4. Agent Specifications
+Each agent below can be implemented and tested independently. Antigravity should spin up all four in parallel, with A3 and A4 waiting only on A2's result stream (not its full completion).
+5. UI/UX Design Specification
+5.1 Layout Structure
+The app is a single scrollable column with four zones stacked vertically:
+Zone 1 — File Upload: drag-and-drop area + file browser button
+Zone 2 — Control Bar: detected competitor count, Start/Stop buttons, Export buttons
+Zone 3 — Progress & Logs: progress bar + live scrolling log panel
+Zone 4 — Results: live-populating result cards + summary stats
+5.2 Component Specs
+File Upload Zone
+Dashed border box, centered content
+Accepts drag-over (highlight border on hover) and drop events
+Hidden <input type='file' accept='.xlsx,.xls'> triggered by click
+On file loaded: show pill badge with filename + competitor count
+On parse error: show inline error message in danger color
+Control Bar
+Primary CTA button: 'Start scraping N sites' — full-width, dark bg
+On run: button changes to disabled state, Stop link appears below
+On done: button changes to 'Re-run scrape'
+Export CSV + Export XLSX buttons appear side-by-side after run completes
+All buttons use 0.5px border, border-radius-md, hover states
+Progress Bar
+Thin (4px) horizontal bar below control zone
+Fills left-to-right as competitors complete — CSS width transition
+Label above bar: 'Scraping [Brand Name] — X of Y'
+Disappears when status = done or idle
+Log Panel
+Fixed-height scrollable container (max 160px), auto-scrolls to bottom
+Monospace font (var(--font-mono)), 12px
+One line per event: [X/Y] Scraping Brand... then indented result
+Color: muted secondary text — not meant to be read closely, just visible
+Result Cards
+One card per competitor, rendered as soon as result arrives
+Card layout: left = brand name + URL, right = status badge
+Below header: horizontal row of platform pills (each is a clickable link)
+Platform pill: small icon/abbreviation + platform name, open link on click
+Status badges: 'X found' (green), 'no links' (amber), 'unreachable' (red), 'error' (red)
+Summary Stats Bar (top of results)
+Three metric cards side by side: Total Processed | Total Links Found | Success Rate
+Updates live as results stream in
+Below metric cards: platform presence bar — horizontal list of platforms with count each
+5.3 States
+6. API Prompt Design
+The prompt sent to the Anthropic API for each competitor is the most critical part of the system. It must be precise, tightly constrained, and produce machine-parseable output.
+6.1 Prompt Template
+6.2 API Request Structure
+Model: claude-sonnet-4-20250514
+max_tokens: 1000 (social link JSON is always <300 tokens)
+Tools: [{ type: 'web_search_20250305', name: 'web_search' }]
+Messages: single user message with the prompt above
+No system prompt needed — instructions are in the user turn
+6.3 Response Parsing
+Concatenate all text-type content blocks from data.content
+Strip ```json and ``` fences using regex
+JSON.parse() inside try/catch — on failure, status = 'parse_error'
+Validate result is a plain object (typeof === 'object', not null, not array)
+Filter values to only include strings starting with 'http'
+If result.error exists, mark as unreachable
+7. Error Handling
+The tool must never crash the full run due to a single site failure. Every error case must be handled gracefully and logged.
+8. Data Schema
+8.1 Competitor Object (A1 output)
+8.2 Result Object (A2 output)
+8.3 Export Row (A4 output)
+9. Parallel Agent Execution Plan for Antigravity
+This section tells Antigravity exactly how to split the work so agents run in parallel and the final artifact is assembled from their outputs.
+9.1 Execution DAG
+9.2 Agent File Assignment
+To enable true parallel coding, each agent maps to its own file/component. Antigravity should assign one agent per worker:
+9.3 Shared State Contract
+All agents read/write a shared React state object in App.jsx. Agents must not own state — they only receive props or return values.
+competitors: Competitor[] — set by A1, read by A2
+results: Result[] — appended by A2, read by A3 and A4
+status: AppStatus — set by App.jsx coordinator
+progress: { current: number, total: number, name: string } — set by A2, read by UI
+logs: string[] — appended by any agent via addLog(msg) callback
+9.4 Suggested Parallel Work Breakdown for 3 Antigravity Workers
+10. Known Limitations & Constraints
+10.1 Technical Constraints
+Social links embedded only in JavaScript (not static HTML) may be missed — web_search mitigates this significantly
+Sites behind Cloudflare or strict bot protection may return unreachable even with web_search
+API rate limiting: 600ms delay between calls is a safe default, but may need tuning for large lists
+SheetJS loaded from CDN — requires internet access in the artifact sandbox
+All processing is client-side — large sheets (200+ competitors) may be slow in the browser
+10.2 Data Constraints
+URL column must contain valid URLs or at minimum recognizable domain names
+The tool cannot verify if a found social profile is the official brand account vs a fan page
+Social links in image elements (e.g. SVG icons with no href) will not be detected
+Platforms not in the predefined list (e.g. Bluesky, Mastodon) will not be captured
+10.3 Out of Scope for v1
+Following inner pages (about, contact) — homepage only
+Authenticating to any website
+Google Sheets input format — .xlsx only
+Scheduling / recurring runs
+Historical tracking / change detection between runs
+11. Future Enhancements (v2 Backlog)
+12. Acceptance Criteria
+The implementation is complete when all of the following pass:
+Uploading a valid .xlsx file with name + URL columns shows correct competitor count
+Starting a run processes each competitor in sequence and shows live progress
+Each result card shows the brand name, website, status badge, and platform links
+Platform links open the correct social profile in a new tab
+Sites that are unreachable show 'unreachable' status without crashing the run
+The Stop button halts the run after the current competitor finishes
+Export CSV downloads a valid comma-separated file with all result columns
+Export XLSX downloads a valid Excel file that opens in Excel/Google Sheets
+The entire tool works in the Claude.ai artifact panel with no additional setup
+Summary stats (processed, links found, success rate) are accurate and update live
+End of Document

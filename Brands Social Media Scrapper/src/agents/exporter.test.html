@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Export Agent</title>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+</head>
+<body style="font-family: sans-serif; padding: 20px;">
+  <h2>Export Agent Test</h2>
+  <button id="exportCsvBtn">Test Export CSV</button>
+  <button id="exportXlsxBtn">Test Export XLSX</button>
+  
+  <p id="status"></p>
+
+  <script type="module">
+    import { exportCSV, exportXLSX } from './exporter.js';
+
+    // Mock results based on PRD specs
+    const mockResults = [
+      {
+        name: 'TechCorp',
+        url: 'https://techcorp.com',
+        status: 'ok',
+        socials: {
+          Facebook: 'https://facebook.com/techcorp',
+          Twitter: 'https://twitter.com/techcorp',
+          LinkedIn: 'https://linkedin.com/company/techcorp'
+        }
+      },
+      {
+        name: 'EmptyBrand',
+        url: 'https://emptybrand.io',
+        status: 'no_links',
+        socials: {}
+      },
+      {
+        name: 'Blocker LLC',
+        url: 'https://blocker.co',
+        status: 'unreachable',
+        socials: {}
+      },
+      {
+        name: 'Socialite',
+        url: 'https://socialite.net',
+        status: 'ok',
+        socials: {
+          Instagram: 'https://instagram.com/socialite_net',
+          TikTok: 'https://tiktok.com/@socialite',
+          YouTube: 'https://youtube.com/c/SocialiteNet'
+        }
+      }
+    ];
+
+    document.getElementById('exportCsvBtn').addEventListener('click', () => {
+      exportCSV(mockResults);
+      document.getElementById('status').innerText = 'CSV Export triggered.';
+    });
+
+    document.getElementById('exportXlsxBtn').addEventListener('click', () => {
+      exportXLSX(mockResults);
+      document.getElementById('status').innerText = 'XLSX Export triggered.';
+    });
+  </script>
+</body>
+</html>

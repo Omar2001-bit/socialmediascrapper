@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scraper Engine Test</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; padding: 2rem; max-width: 800px; margin: 0 auto; color: #333; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+    .pass { border-left: 4px solid #10b981; background: #ecfdf5; }
+    .fail { border-left: 4px solid #ef4444; background: #fef2f2; }
+    pre { background: #f1f5f9; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+    h1 { border-bottom: 2px solid #eee; padding-bottom: 0.5rem; }
+    .log { font-family: monospace; color: #64748b; font-size: 0.9em; margin: 0.25rem 0;}
+  </style>
+</head>
+<body>
+  <h1>Scraper Engine Tests</h1>
+  <div id="results"></div>
+
+  <script type="module">
+    import { scrapeCompetitor } from './src/agents/scraper.js';
+
+    const resultsDiv = document.getElementById('results');
+    
+    function logResult(name, passed, details, logs) {
+      const div = document.createElement('div');
+      div.className = `card ${passed ? 'pass' : 'fail'}`;
+      div.innerHTML = `
+        <h3>${passed ? '✅' : '❌'} ${name}</h3>
+        <pre>${JSON.stringify(details, null, 2)}</pre>
+        <div style="margin-top: 1rem; border-top: 1px solid #ccc; padding-top: 0.5rem;">
+          <strong>Logs:</strong>
+          ${logs.map(l => `<div class="log">${l}</div>`).join('')}
+        </div>
+      `;
+      resultsDiv.appendChild(div);
+    }
+
+    // Mock fetch to simulate Claude API responses
+    const originalFetch = window.fetch;
+    
+    async function runTests() {
+      // Test 1: Successful parse
+      let logs = [];
+      window.fetch = async () => ({
+        ok: true,
+        json: async () => ({
+          content: [
+            { type: 'text', text: 'Here are the links:\n```json\n{"Facebook": "https://facebook.com/acme", "Twitter": "https://x.com/acme"}\n```' }
+          ]
+        })
+      });
+      let res = await scrapeCompetitor({ name: 'Acme Corp', url: 'acme.com' }, 1, 4, l => logs.push(l));
+      let passed = res.status === 'ok' && res.socials.Facebook === 'https://facebook.com/acme' && res.url === 'https://acme.com';
+      logResult('Test 1: Successful scrape', passed, res, logs);
+
+      // Test 2: Unreachable
+      logs = [];
+      window.fetch = async () => ({
+        ok: true,
+        json: async () => ({
+          content: [{ type: 'text', text: '```json\n{"error": "unreachable"}\n```' }]
+        })
+      });
+      res = await scrapeCompetitor({ name: 'Blocked', url: 'https://blocked.com' }, 2, 4, l => logs.push(l));
+      passed = res.status === 'unreachable' && Object.keys(res.socials).length === 0;
+      logResult('Test 2: Unreachable site', passed, res, logs);
+
+      // Test 3: Parse Error
+      logs = [];
+      window.fetch = async () => ({
+        ok: true,
+        json: async () => ({
+          content: [{ type: 'text', text: 'I could not find anything.' }] // No JSON
+        })
+      });
+      res = await scrapeCompetitor({ name: 'Bad JSON', url: 'bad.com' }, 3, 4, l => logs.push(l));
+      passed = res.status === 'parse_error';
+      logResult('Test 3: Parse error', passed, res, logs);
+
+      // Test 4: Network Error
+      logs = [];
+      window.fetch = async () => { throw new Error("Failed to fetch"); };
+      res = await scrapeCompetitor({ name: 'Network Fail', url: 'offline.com' }, 4, 4, l => logs.push(l));
+      passed = res.status === 'error';
+      logResult('Test 4: Network error', passed, res, logs);
+      
+      // Test 5: Empty Socials
+      logs = [];
+      window.fetch = async () => ({
+        ok: true,
+        json: async () => ({
+          content: [{ type: 'text', text: '```json\n{}\n```' }]
+        })
+      });
+      res = await scrapeCompetitor({ name: 'No Links', url: 'nolinks.com' }, 5, 5, l => logs.push(l));
+      passed = res.status === 'no_links' && Object.keys(res.socials).length === 0;
+      logResult('Test 5: No Links', passed, res, logs);
+
+      window.fetch = originalFetch; // restore
+    }
+
+    runTests().catch(e => {
+      const div = document.createElement('div');
+      div.className = 'card fail';
+      div.innerText = 'Test Suite Crashed: ' + e.message;
+      resultsDiv.appendChild(div);
+    });
+  </script>
+</body>
+</html>

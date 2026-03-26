@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Competitor Social Scraper</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React and ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- SheetJS -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  
+  <style>
+    body {
+      background-color: #f8fafc;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Load ReportView first so it's available globally -->
+  <script type="text/babel" src="./src/components/ReportView.js"></script>
+  
+  <!-- Load App which imports the JS agents as ES modules -->
+  <script type="text/babel" data-type="module" src="./src/App.jsx"></script>
+</body>
+</html>

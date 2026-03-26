@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Report Builder Agent</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Import maps for standard modern React loading -->
+  <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0?dev",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev"
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-100 min-h-screen py-10">
+  
+  <div class="max-w-5xl mx-auto px-4">
+    <header class="mb-8 text-center">
+      <h1 class="text-2xl font-bold text-gray-800">Report Builder (Agent 3) Test</h1>
+      <p class="text-gray-500">Live test harness for the React component</p>
+      
+      <div class="mt-4 flex gap-2 justify-center">
+        <button id="addResultBtn" class="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700">Stream Next Result</button>
+        <button id="finishBtn" class="px-4 py-2 bg-emerald-600 text-white rounded shadow hover:bg-emerald-700">Complete Run</button>
+      </div>
+    </header>
+
+    <div id="root"></div>
+  </div>
+
+  <script type="text/babel" data-type="module">
+    import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import ReportView from './ReportView.jsx';
+
+    const fullMockData = [
+      {
+        name: 'TechCorp',
+        url: 'https://techcorp.com',
+        status: 'ok',
+        socials: {
+          Facebook: 'https://facebook.com/techcorp',
+          Twitter: 'https://twitter.com/techcorp',
+          LinkedIn: 'https://linkedin.com/company/techcorp'
+        }
+      },
+      {
+        name: 'EmptyBrand',
+        url: 'https://emptybrand.io',
+        status: 'no_links',
+        socials: {}
+      },
+      {
+        name: 'Blocker LLC',
+        url: 'https://blocker.co',
+        status: 'unreachable',
+        socials: {}
+      },
+      {
+        name: 'Socialite',
+        url: 'https://socialite.net',
+        status: 'ok',
+        socials: {
+          Instagram: 'https://instagram.com/socialite_net',
+          TikTok: 'https://tiktok.com/@socialite',
+          YouTube: 'https://youtube.com/c/SocialiteNet'
+        }
+      },
+      {
+        name: 'Broken JSON Inc',
+        url: 'https://brokenjson.com',
+        status: 'parse_error',
+        socials: {}
+      }
+    ];
+
+    let currentResults = [];
+    let currentStatus = 'running';
+    let dataIdx = 0;
+
+    const root = createRoot(document.getElementById('root'));
+
+    function render() {
+      root.render(<ReportView results={currentResults} status={currentStatus} />);
+    }
+
+    // Initial render
+    render();
+
+    // Stream buttons
+    document.getElementById('addResultBtn').addEventListener('click', () => {
+      if (dataIdx < fullMockData.length) {
+        currentResults = [...currentResults, fullMockData[dataIdx]];
+        dataIdx++;
+        render();
+      } else {
+        alert("No more mock data to stream.");
+      }
+    });
+
+    document.getElementById('finishBtn').addEventListener('click', () => {
+      currentStatus = 'done';
+      render();
+    });
+  </script>
+</body>
+</html>
